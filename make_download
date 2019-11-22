@@ -1,0 +1,54 @@
+#!/bin/bash
+Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"
+Info="${Green_font_prefix}[信息]${Font_color_suffix}" && Error="${Red_font_prefix}[错误]${Font_color_suffix}" && Tip="${Green_font_prefix}[注意]${Font_color_suffix}"
+
+### 使用方法：
+### 进行alias的别名设置，即可在目录内快速make download
+### 例如，将内容保存到/root/tools/make_download文件内
+### 并alias make_download='/root/tools/make_download'后，使用make_download命令即可快速自动下载。
+
+## 修改区域开始
+## 从编译农场获取项目使用的编译服务器，加到下面列表
+servers="192.168.5.172 192.168.5.183 192.168.5.203 192.168.5.202"
+## 修改区域结束
+
+product=$(basename "$PWD" | awk -F '_' '{printf $2}')
+project=`git remote -v | awk -F ' ' '{print $2}' | head -1 | awk -F ':' '{print $2}'`
+branch=`git branch | grep "*" | awk -F ' ' '{print $2}'`
+
+new_dir=""
+new_ver_tmp=0
+new_server=""
+	
+for server in $servers; do
+	ver_dir=`rm -rf index.html* &&  wget -q http://${server}/ngcf/output/${project}/${branch}/ && cat index.html | grep href= | grep -v fail | grep ${product}_0_A | awk -F "href=\"" '{print $2}' | awk -F "/" '{print $1}' | head -1`
+	ver_tmp=` echo $ver_dir | awk -F 'id' '{print $2}' | awk -F '-' '{print $1}'`
+	ver_tmp=${ver_tmp:0:14}
+	if [ -z "$ver_tmp" ]; then 
+		#echo "ver_tmp is empty, continue."
+		continue
+	fi
+	
+	#echo "[debug] ver_tmp=$ver_tmp new_ver_tmp=$new_ver_tmp"
+    if [ $ver_tmp -gt $new_ver_tmp ]; then
+		echo "[$server] ${ver_tmp} is newer."
+		new_ver_tmp=$ver_tmp
+		new_dir=$ver_dir
+		new_server=$server
+	fi
+done;
+
+ver_url="http://"${new_server}"/ngcf/output/"${project}"/"${branch}"/"$new_dir"/image.tar.bz2"
+
+echo -e "${Info} make download:\n\t project : ${project}\n\t branch : ${branch}\n\t product : ${product}\n"
+
+echo -e "${Info} source env-setup."
+source env-setup 
+
+echo -e "${Info} script get the new version: "$ver_url
+echo -e "${Info} make download img="${ver_url}
+make download img=${ver_url} 
+
+source env-setup
+
+echo -e "${Info} make download finish, Enjoy it."
